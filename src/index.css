@@ -1,0 +1,180 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ */
+/* Design tokens                                                        */
+/* ------------------------------------------------------------------ */
+:root {
+  --void: #0b0e14;
+  --void-2: #0f172a;
+  --system: #3B9EFF;
+  --glow: #5CC8FF;
+  --text: #e2f3ff;
+  --text-2: #9fb6cc;
+  --text-3: #64798f;
+  --line: rgba(59, 158, 255, 0.18);
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--void);
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: Rajdhani, Inter, system-ui, sans-serif;
+  min-height: 100dvh;
+  /* Dark void with a blue System haze rising from below + faint scanlines */
+  background-color: #03060d;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(92, 180, 255, 0.025) 0 1px, transparent 1px 4px),
+    radial-gradient(ellipse 90% 55% at 50% 115%, rgba(34, 128, 240, 0.28), transparent 65%),
+    radial-gradient(ellipse 70% 45% at 50% -15%, rgba(59, 158, 255, 0.18), transparent 60%),
+    radial-gradient(ellipse 40% 30% at 0% 50%, rgba(26, 80, 160, 0.18), transparent 70%);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgba(92, 200, 255, 0.25);
+}
+
+/* Thin themed scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59, 158, 255, 0.35) transparent;
+}
+
+@layer components {
+  /*
+   * "System window": translucent deep-blue glass, a bright 1px holographic border,
+   * outer + inner blue glow, and a light strip along the top edge.
+   */
+  .panel {
+    @apply relative rounded-[6px] backdrop-blur-md;
+    border: 1px solid rgba(92, 180, 255, 0.55);
+    background:
+      linear-gradient(180deg, rgba(92, 180, 255, 0.10), transparent 18%),
+      linear-gradient(180deg, rgba(10, 26, 56, 0.86), rgba(3, 9, 22, 0.92));
+    box-shadow:
+      0 0 0 1px rgba(92, 180, 255, 0.10),
+      0 0 22px rgba(59, 158, 255, 0.30),
+      inset 0 0 30px rgba(59, 158, 255, 0.12);
+  }
+  .panel-title {
+    @apply font-display text-[12px] font-bold uppercase tracking-[0.22em] text-white;
+    text-shadow: 0 0 10px rgba(92, 180, 255, 0.9);
+  }
+  /* Boxed window title, e.g.  [ QUEST INFO ] */
+  .sys-title {
+    @apply inline-flex items-center border px-3 py-1 font-display text-[12px] font-bold uppercase tracking-[0.24em] text-white sm:px-4 sm:text-[13px];
+    border-color: rgba(140, 200, 255, 0.75);
+    background: rgba(59, 158, 255, 0.08);
+    box-shadow: 0 0 12px rgba(59, 158, 255, 0.45), inset 0 0 10px rgba(59, 158, 255, 0.25);
+    text-shadow: 0 0 10px rgba(92, 180, 255, 0.95);
+  }
+  /* Circled "!" notification glyph */
+  .sys-icon {
+    @apply inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 font-display text-sm font-black text-white;
+    border-color: rgba(160, 210, 255, 0.9);
+    box-shadow: 0 0 10px rgba(59, 158, 255, 0.7), inset 0 0 6px rgba(59, 158, 255, 0.5);
+    text-shadow: 0 0 8px rgba(92, 180, 255, 1);
+  }
+  .sys-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(140, 200, 255, 0.7), transparent);
+  }
+  .btn {
+    @apply inline-flex min-h-[40px] items-center justify-center gap-2 rounded-[4px] border border-cyan-300/60 bg-cyan-500/10 px-4 py-2 font-display text-xs font-bold uppercase tracking-widest text-white transition hover:border-cyan-200 hover:bg-cyan-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 active:scale-[0.98] disabled:opacity-40;
+    box-shadow: 0 0 10px rgba(59, 158, 255, 0.25), inset 0 0 8px rgba(59, 158, 255, 0.15);
+    text-shadow: 0 0 8px rgba(92, 180, 255, 0.8);
+  }
+  .btn-ghost {
+    @apply inline-flex min-h-[36px] items-center justify-center gap-2 rounded-lg px-3 py-1.5 font-mono text-xs text-slate-300 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300;
+  }
+  .btn-danger {
+    @apply btn border-red-500/40 bg-red-500/10 text-red-200 hover:border-red-400 hover:bg-red-500/20;
+  }
+  .input {
+    @apply w-full rounded-lg border border-cyan-400/20 bg-void-900/80 px-3 py-2 font-mono text-sm text-slate-100 placeholder:text-slate-500 focus:border-cyan-300/70 focus:outline-none focus:ring-1 focus:ring-cyan-300/50;
+  }
+  .label {
+    @apply mb-1 block font-display text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider;
+  }
+}
+
+/* Bright corner ticks on System windows (top-left + bottom-right) */
+.brackets::before,
+.brackets::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-color: #b8deff;
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px rgba(92, 180, 255, 1));
+}
+.brackets::before {
+  top: -2px;
+  left: -2px;
+  border-top: 2px solid;
+  border-left: 2px solid;
+  border-top-left-radius: 6px;
+}
+.brackets::after {
+  bottom: -2px;
+  right: -2px;
+  border-bottom: 2px solid;
+  border-right: 2px solid;
+  border-bottom-right-radius: 6px;
+}
+
+.text-glow {
+  text-shadow: 0 0 10px rgba(92, 180, 255, 0.85), 0 0 22px rgba(59, 158, 255, 0.45);
+}
+
+/* Floating mana motes in the background */
+.sys-mote {
+  position: fixed;
+  bottom: -10px;
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: #8acbff;
+  box-shadow: 0 0 8px 2px rgba(92, 180, 255, 0.8);
+  animation: drift linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Habit grid sticky columns */
+.grid-sticky-left {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+.grid-sticky-right {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+}
+
+/* Safe-area padding for the mobile bottom nav */
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
