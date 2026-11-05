@@ -1,6 +1,8 @@
 # Deployment Guide
 
-The System is a **static site**: HTML, JS, and CSS plus a service worker. There's no server and no database to host, so hosting is free.
+The full setup, including Supabase accounts, is in the [README](../README.md#-put-it-online-with-accounts-free). This page covers other hosts and installing on a phone.
+
+The System is a **static site**: HTML, JS, and CSS plus a service worker. Accounts and saved progress are handled by Supabase, so there is no server of your own to run.
 
 ## Should I deploy it?
 
@@ -11,9 +13,12 @@ The System is a **static site**: HTML, JS, and CSS plus a service worker. There'
 | Open it on your phone in one tap | ✅ Deploy, then **Install** it to your home screen (PWA) |
 | Use it offline (on a bus, no data) | ✅ Works offline after the first visit |
 | Share a link on LinkedIn / in your CV | ✅ A live demo is far more convincing than screenshots |
-| Keep your habit data private | ✅ Your data stays **in your own browser** (IndexedDB) and is never uploaded |
+| Keep your habit data private | ✅ Each account's data is protected by Row Level Security |
+| See the same progress on every device | ✅ Sign in to the same account |
 
-> ⚠️ **Data is per device and per browser.** Your phone and laptop each keep their own copy. To move data between them, use **Settings → Export JSON** on one and **Restore JSON** on the other. (Real multi-device sync is on the roadmap via Supabase; see [DATA-MODEL.md](DATA-MODEL.md).)
+> ⚠️ Without an account ("Continue without an account"), data is per browser and does not sync.
+
+> ⚠️ **On any host other than GitHub Pages**, add that site's address to Supabase's Site URL and Redirect URLs, or email links will fail.
 
 ## Recommended options
 
@@ -30,21 +35,7 @@ My pick: **GitHub Pages** for the portfolio link, plus installing it as a PWA on
 
 ### Option A: GitHub Pages (workflow included)
 
-1. Create a new GitHub repository, e.g. `the-system-habit-tracker`.
-2. Push this project:
-   ```bash
-   git init
-   git add .
-   git commit -m "The System v1.0"
-   git branch -M main
-   git remote add origin https://github.com/<your-username>/the-system-habit-tracker.git
-   git push -u origin main
-   ```
-3. On GitHub, go to **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-4. The workflow in `.github/workflows/deploy.yml` runs the tests, builds, and deploys.
-   Your app goes live at `https://<your-username>.github.io/the-system-habit-tracker/`.
-
-The Vite config uses `base: './'`, so it works under any sub-path without changes.
+Follow [the README steps](../README.md#-put-it-online-with-accounts-free). The workflow in `.github/workflows/deploy.yml` runs the tests, builds, and deploys on every push to `main`. The Vite config uses `base: './'`, so it works under any sub-path without changes.
 
 ### Option B: Vercel
 

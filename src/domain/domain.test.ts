@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, diffDays, fromKey, isValidKey, toKey, weekday } from './dates';
+import { addDays, diffDays, fromKey, getActiveTimezone, hourInZone, isValidKey, minutesUntilMidnight, setActiveTimezone, toKey, todayKey, weekday } from './dates';
 import { getLevelInfo, levelForExp, levelStartExp, rankForLevel } from './leveling';
 import { completionId, dayStats, indexCompletions, isScheduled } from './completion';
 import { bestStreak, currentStreak } from './streak';
@@ -45,6 +45,25 @@ describe('dates', () => {
   });
   it('knows weekdays (3 Nov 2026 is a Tuesday)', () => {
     expect(weekday('2026-11-03')).toBe(2);
+  });
+});
+
+describe('explicit timezone', () => {
+  // 19:30 UTC on 4 Nov is already 5 Nov in Dhaka (UTC+6).
+  const instant = new Date('2026-11-04T19:30:00Z');
+  it('decides the day by the chosen timezone, not the device', () => {
+    expect(todayKey(instant, 'Asia/Dhaka')).toBe('2026-11-05');
+    expect(todayKey(instant, 'America/New_York')).toBe('2026-11-04');
+    expect(todayKey(instant, 'UTC')).toBe('2026-11-04');
+  });
+  it('defaults to Asia/Dhaka and rejects invalid zones', () => {
+    setActiveTimezone('Not/AZone');
+    expect(getActiveTimezone()).toBe('Asia/Dhaka');
+    expect(todayKey(instant)).toBe('2026-11-05');
+  });
+  it('gives hour and time to midnight in that zone', () => {
+    expect(hourInZone(instant, 'Asia/Dhaka')).toBe(1);
+    expect(minutesUntilMidnight(instant, 'Asia/Dhaka')).toBe(22 * 60 + 30);
   });
 });
 

@@ -59,7 +59,7 @@ await shoot('07-levelup', desktop, 'Today', {
     await page.evaluate(
       (exp) =>
         new Promise((res, rej) => {
-          const req = indexedDB.open('the-system');
+          const req = indexedDB.open('the-system-demo');
           req.onsuccess = () => {
             const tx = req.result.transaction('completions', 'readwrite');
             tx.objectStore('completions').put({ id: 'screenshot-bonus|2020-01-01', questId: 'screenshot-bonus', date: '2020-01-01', expAwarded: exp, stat: 'INT', category: 'Intellectual', completedAt: '' });

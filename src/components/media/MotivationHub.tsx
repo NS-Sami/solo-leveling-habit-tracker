@@ -13,7 +13,7 @@ import { useSystem } from '../../state/SystemProvider';
 import { useUI } from '../../state/ui';
 import { db } from '../../data/db';
 import { updateSettings } from '../../data/actions';
-import { facebookEmbedUrl, isFacebookShareLink, youtubeEmbedUrl, youtubeId } from '../../lib/media';
+import { facebookEmbedUrl, isFacebookShareLink, safeHttpUrl, youtubeEmbedUrl, youtubeId } from '../../lib/media';
 import { anthem } from '../../lib/sfx';
 import type { MediaItem } from '../../domain/types';
 import { Panel } from '../ui/primitives';
@@ -45,7 +45,8 @@ export function MediaPlayer({ item, large = false, autoLoad = false }: { item: M
       : 'mx-auto aspect-[9/16] w-full max-w-[260px]'
     : 'aspect-video w-full';
 
-  const ytThumb = item.type === 'youtube' && item.url ? `https://i.ytimg.com/vi/${youtubeId(item.url)}/hqdefault.jpg` : null;
+  const ytVideoId = item.type === 'youtube' && item.url ? youtubeId(item.url) : null;
+  const ytThumb = ytVideoId ? `https://i.ytimg.com/vi/${ytVideoId}/hqdefault.jpg` : null;
 
   if (!loaded && item.type !== 'file') {
     return (
@@ -112,10 +113,11 @@ export function MediaPlayer({ item, large = false, autoLoad = false }: { item: M
 }
 
 function Fallback({ item, hint }: { item: MediaItem; hint?: string }) {
-  if (!item.url) return null;
+  const url = safeHttpUrl(item.url);
+  if (!url) return null;
   return (
     <div className="flex flex-wrap items-center justify-center gap-2 text-center">
-      <a className="btn-ghost text-cyan-200" href={item.url} target="_blank" rel="noreferrer noopener">
+      <a className="btn-ghost text-cyan-200" href={url} target="_blank" rel="noreferrer noopener">
         <ExternalLink size={14} /> Open {item.type === 'facebook' ? 'on Facebook' : 'original'}
       </a>
       {hint && <span className="w-full font-mono text-[10px] text-slate-500">{hint}</span>}

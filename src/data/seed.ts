@@ -3,6 +3,7 @@
  * Max EXP per perfect day = 650.
  */
 import type { Category, Difficulty, Quest, Settings, Stat } from '../domain/types';
+import { DEFAULT_TIMEZONE } from '../domain/dates';
 
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 
@@ -67,6 +68,7 @@ export function defaultSettings(cycleAnchor: string): Settings {
     emergencyThreshold: 0.4,
     streakThreshold: 0.5,
     cycleAnchor,
+    timezone: DEFAULT_TIMEZONE,
     quote: DEFAULT_QUOTE,
     media: [
       {

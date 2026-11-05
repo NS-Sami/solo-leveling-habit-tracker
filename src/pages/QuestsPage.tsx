@@ -155,7 +155,7 @@ function QuestForm({ draft, onClose }: { draft: Draft | null; onClose: () => voi
       >
         <div>
           <label className="label" htmlFor="qname">Quest name</label>
-          <input id="qname" className="input" value={d.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. 30 push-ups" autoFocus />
+          <input id="qname" className="input" maxLength={200} value={d.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. 30 push-ups" autoFocus />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

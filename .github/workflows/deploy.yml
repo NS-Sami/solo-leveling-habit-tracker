@@ -25,6 +25,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Refuse to publish a Supabase secret key
+        run: |
+          if grep -rEl --exclude='*.test.ts' 'sb_secret_[A-Za-z0-9]|service_role.*eyJ' public src index.html; then
+            echo "A secret key was found in files that get published. Remove it and rotate it in Supabase."
+            exit 1
+          fi
       - run: npm ci
       - run: npm test
       - run: npm run build

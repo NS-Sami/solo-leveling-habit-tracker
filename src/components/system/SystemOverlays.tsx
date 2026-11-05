@@ -9,6 +9,7 @@ import { useUI } from '../../state/ui';
 import { useSystem } from '../../state/SystemProvider';
 import { setRestDay } from '../../data/actions';
 import { sfx } from '../../lib/sfx';
+import { hourInZone, minutesUntilMidnight } from '../../domain/dates';
 
 const TONES = {
   system: { border: 'rgba(140,200,255,.8)', glow: 'rgba(59,158,255,.55)', text: '#ffffff' },
@@ -167,7 +168,7 @@ export function LevelUpModal() {
 export function EmergencyBanner() {
   const { now, todayStats, settings, today } = useSystem();
   const active =
-    now.getHours() >= settings.emergencyHour &&
+    hourInZone(now) >= settings.emergencyHour &&
     !todayStats.restDay &&
     todayStats.scheduled > 0 &&
     todayStats.ratio < settings.emergencyThreshold;
@@ -182,9 +183,7 @@ export function EmergencyBanner() {
 
   if (!active) return null;
   const needed = Math.ceil(settings.emergencyThreshold * todayStats.scheduled) - todayStats.done;
-  const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0);
-  const mins = Math.max(0, Math.round((midnight.getTime() - now.getTime()) / 60000));
+  const mins = minutesUntilMidnight(now);
 
   return (
     <motion.div

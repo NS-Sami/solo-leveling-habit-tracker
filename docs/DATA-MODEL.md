@@ -1,94 +1,88 @@
 # Data Model
 
-## Local (IndexedDB via Dexie), current
+The source of truth for a signed-in user is Supabase. Each device keeps a local copy in IndexedDB, plus a queue of changes the server has not confirmed yet.
 
-| Table | Key | Fields |
+## Supabase tables
+
+The full SQL, including every security policy, is in [`supabase/migrations/0001_init.sql`](../supabase/migrations/0001_init.sql).
+
+| Table | Holds | Key |
 |---|---|---|
-| `quests` | `id` | name, category, stat, exp, difficulty, scheduleDays[], order, createdAt, archivedAt, updatedAt |
-| `completions` | `id` = `questId\|date` | questId, date, **expAwarded** (snapshot), stat, category, completedAt |
-| `dayMeta` | `date` | restDay |
-| `settings` | `'settings'` | hunterName, avatarDataUrl, sfxOn, volume, emergencyHour, emergencyThreshold, streakThreshold, cycleAnchor, quote, media[], activeMediaId, anthemBlobKey, lastBackupAt, schemaVersion |
-| `blobs` | `key` | uploaded video / audio files (kept out of JSON backups) |
+| `quests` | Name, category, stat, EXP, difficulty, weekdays, order, archived date | `(user_id, id)` |
+| `completions` | One row per quest per day, with the EXP it was worth at the time | `(user_id, id)`, unique `(user_id, quest_id, date)` |
+| `day_meta` | Rest days | `(user_id, id)`, where `id` is the date |
+| `user_settings` | Timezone, plus name, rules, quote and media links as JSON | `(user_id, id)` |
 
-**Why the completion id is deterministic:** toggling is idempotent (one completion per quest per day), and an import or sync can safely `put` the same record twice.
+Every table also has:
 
-**Schema changes:** add `this.version(2).stores({...}).upgrade(tx => ...)` in `src/data/db.ts`. Never edit version 1 in place.
+| Column | Purpose |
+|---|---|
+| `user_id` | Owner. Row Level Security compares it with the signed-in user. |
+| `version` | Set by the server, and increases on every update. |
+| `updated_at` | Set by the server. Devices use it to ask what changed. |
+| `client_updated_at` | When the edit was made on the device. |
+| `deleted_at` | Marks a deletion, so other devices hear about it. |
 
-## Backup file (`the-system-backup-YYYY-MM-DD.json`)
+**EXP, level, rank, stats and streaks are not stored.** They are calculated from completions, so they cannot drift out of step, and a duplicate reward would need a duplicate row, which the database refuses.
+
+## Security
+
+Row Level Security is on for all four tables, each with SELECT, INSERT, UPDATE and DELETE policies limited to `auth.uid() = user_id`. Visitors who are not signed in have no access.
+
+The browser only ever holds the project URL and the publishable key, both public by design. Security comes from these rules, not from hiding the key.
+
+## Local tables (IndexedDB)
+
+| Database | Used for |
+|---|---|
+| `the-system` | Progress from before accounts, and "This device only" mode. Never deleted automatically. |
+| `the-system-u-<userId>` | One account's copy. Separate per account, so a shared device cannot mix them. |
+| `the-system-demo` | `?demo=1` sample data. Never uploaded. |
+
+Each database has `quests`, `completions`, `dayMeta`, `settings` and `blobs` (uploaded video and audio, device only), plus these sync tables:
+
+| Table | Purpose |
+|---|---|
+| `outbox` | Rows changed locally and not yet confirmed. Written in the same transaction as the change. |
+| `rowMeta` | The server version last seen for each row. |
+| `syncState` | How far each table has been pulled. |
+| `conflicts` | Quests or settings changed on two devices, waiting for the user's choice. |
+
+## How sync works
+
+**Push.** For each row in the outbox, the device sends an update that applies only if the server's `version` still matches the one it last saw.
+
+- Accepted: the change is confirmed and leaves the outbox, unless the user edited the row again meanwhile.
+- Rejected, but the server already has the same content: an earlier attempt worked and only its reply was lost, so it counts as confirmed.
+- Rejected with different content, for a completion or rest day: the later edit wins, by device time.
+- Rejected with different content, for a quest or settings: the row is held as a conflict, nothing is overwritten, and the user chooses.
+
+**Pull.** The device fetches rows changed since its last pull, reading 60 seconds further back in case a slow write finished late. Rows with unsent edits or an open conflict are skipped, so a pull cannot erase local work.
+
+**When.** After an edit (600 ms later, so bursts share one upload), when the connection returns, when the tab regains focus, every 60 seconds, and when you press Sync now. Failures retry with increasing delays, up to 5 minutes.
+
+Device clocks only matter for the "later edit wins" rule. A device with a badly wrong clock could win or lose that comparison, and only for that one tick.
+
+## Schema changes
+
+**Supabase:** add a new numbered file in `supabase/migrations/`. Do not edit one that has already run.
+
+**Local:** add `this.version(n).stores({...}).upgrade(...)` in `src/data/db.ts`.
+
+## Backup file
+
+**Settings → Export JSON** downloads `the-system-backup-YYYY-MM-DD.json`:
 
 ```json
 {
   "app": "the-system",
   "version": 1,
-  "exportedAt": "2026-11-04T10:00:00.000Z",
-  "quests": [ ... ],
-  "completions": [ ... ],
-  "dayMeta": [ ... ],
-  "settings": { ... }
+  "exportedAt": "2026-11-05T10:00:00.000Z",
+  "quests": [],
+  "completions": [],
+  "dayMeta": [],
+  "settings": {}
 }
 ```
 
-## Cloud sync: ready-to-use Supabase / PostgreSQL schema
-
-Not wired up yet (it's on the roadmap). All writes already go through `src/data/actions.ts`, so a sync adapter only needs to mirror those calls.
-
-```sql
--- Supabase: run in SQL editor. Row Level Security keeps each hunter's data private.
-create table quests (
-  id            text primary key,
-  user_id       uuid not null references auth.users(id) on delete cascade,
-  name          text not null,
-  category      text not null check (category in ('Physical','Spiritual','Intellectual','Health','Routine')),
-  stat          text not null check (stat in ('STR','AGI','INT','VIT','SEN')),
-  exp           int  not null check (exp > 0),
-  difficulty    text not null check (difficulty in ('Easy','Normal','Hard')),
-  schedule_days int[] not null default '{0,1,2,3,4,5,6}',
-  sort_order    int  not null default 0,
-  created_at    date not null default current_date,
-  archived_at   date,
-  updated_at    timestamptz not null default now(),
-  deleted       boolean not null default false          -- tombstone for sync
-);
-
-create table completions (
-  id            text primary key,                        -- questId|date
-  user_id       uuid not null references auth.users(id) on delete cascade,
-  quest_id      text not null,
-  date          date not null,
-  exp_awarded   int  not null,
-  stat          text not null,
-  category      text not null,
-  completed_at  timestamptz not null default now(),
-  deleted       boolean not null default false,
-  updated_at    timestamptz not null default now(),
-  unique (user_id, quest_id, date)
-);
-
-create table day_meta (
-  user_id  uuid not null references auth.users(id) on delete cascade,
-  date     date not null,
-  rest_day boolean not null default false,
-  updated_at timestamptz not null default now(),
-  primary key (user_id, date)
-);
-
-create table settings (
-  user_id uuid primary key references auth.users(id) on delete cascade,
-  data    jsonb not null,
-  updated_at timestamptz not null default now()
-);
-
-alter table quests      enable row level security;
-alter table completions enable row level security;
-alter table day_meta    enable row level security;
-alter table settings    enable row level security;
-
-create policy "own rows" on quests      for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create policy "own rows" on completions for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create policy "own rows" on day_meta    for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create policy "own rows" on settings    for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
-
-create index on completions (user_id, date);
-```
-
-**Sync strategy (planned):** last-write-wins on `updated_at`. Unchecking becomes a tombstone (`deleted = true`) instead of a hard delete, so an offline device can't bring a completion back to life.
+**Restore JSON** replaces everything in the account, on all devices, after a confirmation.

@@ -9,7 +9,28 @@
  */
 import type { MediaType } from '../domain/types';
 
+/**
+ * Returns the URL only if it is http(s). Blocks javascript: and data: links, which
+ * would run code if rendered as a link.
+ */
+export function safeHttpUrl(url: string | undefined | null): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url.trim());
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+const YT_ID = /^[\w-]{6,20}$/;
+
 export function youtubeId(url: string): string | null {
+  const id = parseYoutubeId(url);
+  return id && YT_ID.test(id) ? id : null;
+}
+
+function parseYoutubeId(url: string): string | null {
   try {
     const u = new URL(url.trim());
     const host = u.hostname.replace(/^www\.|^m\./, '');

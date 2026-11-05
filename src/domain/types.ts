@@ -76,6 +76,8 @@ export interface Settings {
   streakThreshold: number;
   /** First day of the very first 28-day cycle. Cycles repeat every 28 days from here. */
   cycleAnchor: DateKey;
+  /** IANA timezone that decides when a day starts and ends. Default Asia/Dhaka. */
+  timezone?: string;
   quote: string;
   media: MediaItem[];
   activeMediaId?: string | null;

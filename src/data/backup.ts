@@ -3,6 +3,7 @@
  * Uploaded media blobs are NOT included (they can be large); media links are.
  */
 import { db } from './db';
+import { replaceAllData } from './actions';
 import type { Completion, DayMeta, Quest, Settings } from '../domain/types';
 
 export interface BackupFile {
@@ -49,17 +50,12 @@ export function validateBackup(x: unknown): x is BackupFile {
   return !!b && b.app === 'the-system' && Array.isArray(b.quests) && Array.isArray(b.completions);
 }
 
-/** Replaces ALL local data with the backup. */
+/** Replaces ALL data with the backup. On an account, the online copy follows. */
 export async function restoreBackup(data: BackupFile) {
-  await db.transaction('rw', [db.quests, db.completions, db.dayMeta, db.settings], async () => {
-    await Promise.all([db.quests.clear(), db.completions.clear(), db.dayMeta.clear()]);
-    await db.quests.bulkPut(data.quests);
-    await db.completions.bulkPut(data.completions);
-    await db.dayMeta.bulkPut(data.dayMeta ?? []);
-    if (data.settings) {
-      const current = await db.settings.get('settings');
-      // Keep uploaded-blob references only if those blobs exist on this device.
-      await db.settings.put({ ...data.settings, anthemBlobKey: current?.anthemBlobKey ?? null });
-    }
+  await replaceAllData({
+    quests: data.quests,
+    completions: data.completions,
+    dayMeta: data.dayMeta ?? [],
+    settings: data.settings,
   });
 }

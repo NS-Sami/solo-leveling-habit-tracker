@@ -14,7 +14,7 @@ import { dayStats, indexCompletions, type CompletionIndex, type DayStats } from 
 import { getLevelInfo, type LevelInfo } from '../domain/leveling';
 import { bestStreak, currentStreak } from '../domain/streak';
 import { totalExp } from '../domain/stats';
-import { addDays, todayKey } from '../domain/dates';
+import { addDays, getActiveTimezone, setActiveTimezone, todayKey } from '../domain/dates';
 import { cycleFor, type CycleInfo } from '../domain/cycle';
 import { configureSfx, sfx } from '../lib/sfx';
 import { useUI } from './ui';
@@ -68,7 +68,9 @@ export function SystemProvider({ children, fallback }: { children: ReactNode; fa
   const metaRows = useLiveQuery(() => db.dayMeta.toArray(), []);
   const settings = useLiveQuery(() => db.settings.get('settings'), []);
   const now = useNow();
-  const today = todayKey(now);
+  // The hunter's chosen timezone decides "today" on every device.
+  setActiveTimezone(settings?.timezone);
+  const today = todayKey(now, getActiveTimezone());
   const pushToast = useUI((s) => s.pushToast);
   const setLevelUp = useUI((s) => s.setLevelUp);
 
@@ -113,11 +115,15 @@ export function SystemProvider({ children, fallback }: { children: ReactNode; fa
   const prevLevel = useRef<number | null>(null);
   const prevRank = useRef<string | null>(null);
   const prevTodayDone = useRef<{ date: string; full: boolean } | null>(null);
+  // Celebrations are for quests cleared here, not history arriving from another device.
+  const lastTapAt = useRef(0);
+  const tappedRecently = () => Date.now() - lastTapAt.current < 3000;
+  const toggling = useRef(new Set<string>());
 
   useEffect(() => {
     if (!derived) return;
     const { level } = derived;
-    if (prevLevel.current !== null && level.level > prevLevel.current) {
+    if (prevLevel.current !== null && level.level > prevLevel.current && tappedRecently()) {
       const rankUp = prevRank.current !== level.rank.id;
       setLevelUp({
         level: level.level,
@@ -137,7 +143,7 @@ export function SystemProvider({ children, fallback }: { children: ReactNode; fa
     const t = derived.todayStats;
     const full = t.scheduled > 0 && t.done === t.scheduled;
     const prev = prevTodayDone.current;
-    if (prev && prev.date === t.date && !prev.full && full) {
+    if (prev && prev.date === t.date && !prev.full && full && tappedRecently()) {
       setTimeout(() => sfx.dayComplete(), 250);
       pushToast({ title: 'You have completed the Daily Quest.', body: 'All rewards have been granted.', tone: 'gold' });
     }
@@ -146,12 +152,23 @@ export function SystemProvider({ children, fallback }: { children: ReactNode; fa
 
   const toggle = useCallback(
     async (q: Quest, d: DateKey) => {
-      const nowDone = await toggleCompletion(q, d);
-      if (nowDone) {
-        sfx.check();
-        pushToast({ title: `Quest cleared. +${q.exp} EXP`, body: `${q.name} · ${q.stat} +${q.exp}`, tone: 'system' });
-      } else {
-        sfx.uncheck();
+      // A second tap while the first is still saving is ignored.
+      const key = `${q.id}|${d}`;
+      if (toggling.current.has(key)) return;
+      toggling.current.add(key);
+      lastTapAt.current = Date.now();
+      try {
+        const nowDone = await toggleCompletion(q, d);
+        if (nowDone) {
+          sfx.check();
+          pushToast({ title: `Quest cleared. +${q.exp} EXP`, body: `${q.name} · ${q.stat} +${q.exp}`, tone: 'system' });
+        } else {
+          sfx.uncheck();
+        }
+      } catch (err) {
+        pushToast({ title: 'Could not save that change', body: (err as Error).message, tone: 'crimson' });
+      } finally {
+        toggling.current.delete(key);
       }
     },
     [pushToast],

@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import { SystemProvider } from './state/SystemProvider';
-import { ensureSeeded, requestPersistence, seedDemoIfRequested } from './data/db';
+import { AuthGate } from './state/AuthGate';
 import './index.css';
 
 function Boot() {
@@ -18,15 +18,15 @@ function Boot() {
 // Offline support: service worker auto-updates in the background.
 registerSW({ immediate: true });
 
-ensureSeeded()
-  .then(() => seedDemoIfRequested())
-  .then(() => requestPersistence())
-  .finally(() => {
-    ReactDOM.createRoot(document.getElementById('root')!).render(
-      <React.StrictMode>
-        <SystemProvider fallback={<Boot />}>
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <AuthGate>
+      {(dbName) => (
+        // Remounting on database change means accounts never share in-memory state.
+        <SystemProvider key={dbName} fallback={<Boot />}>
           <App />
         </SystemProvider>
-      </React.StrictMode>,
-    );
-  });
+      )}
+    </AuthGate>
+  </React.StrictMode>,
+);

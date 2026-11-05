@@ -1,14 +1,55 @@
 /**
- * IndexedDB persistence via Dexie. Offline-first: the app never needs a server.
+ * IndexedDB persistence via Dexie.
+ *
+ * There is one local database per "owner", so accounts can never see each other's
+ * data on a shared device:
+ *   the-system            progress saved before accounts existed (never auto-deleted)
+ *   the-system-demo       sample data for ?demo=1 (never uploaded)
+ *   the-system-u-<userId> an account's copy of its cloud data, plus unsent changes
  *
  * Schema versioning: bump `this.version(n)` and add an `.upgrade()` for any
  * future change so existing users never lose data.
  */
 import Dexie, { type Table } from 'dexie';
 import type { BlobRecord, Completion, DayMeta, Quest, Settings } from '../domain/types';
+import type { SyncTable } from '../sync/mapping';
 import { SEED_QUESTS, defaultSettings } from './seed';
-import { addDays, diffDays, startOfWeek, todayKey } from '../domain/dates';
+import { DEFAULT_TIMEZONE, addDays, diffDays, startOfWeek, todayKey } from '../domain/dates';
 import { completionId } from '../domain/completion';
+
+export const LEGACY_DB_NAME = 'the-system';
+export const DEMO_DB_NAME = 'the-system-demo';
+export const userDbName = (userId: string) => `the-system-u-${userId}`;
+
+/** A local change that the server has not confirmed yet. One entry per row. */
+export interface OutboxItem {
+  key: string; // `${table}|${rowId}`
+  table: SyncTable;
+  rowId: string;
+  /** Increases on every edit, so a confirmation only clears the edit it was for. */
+  rev: number;
+  dirtiedAt: string;
+}
+
+/** The server version this device last saw for a row (kept for deleted rows too). */
+export interface RowMeta {
+  key: string;
+  version: number;
+}
+
+export interface SyncState {
+  key: string; // table name
+  cursor: string | null;
+}
+
+/** Two devices edited the same quest or settings: the user chooses which to keep. */
+export interface ConflictItem {
+  key: string;
+  table: SyncTable;
+  rowId: string;
+  serverRow: Record<string, unknown>;
+  detectedAt: string;
+}
 
 export class SystemDB extends Dexie {
   quests!: Table<Quest, string>;
@@ -16,9 +57,16 @@ export class SystemDB extends Dexie {
   dayMeta!: Table<DayMeta, string>;
   settings!: Table<Settings, string>;
   blobs!: Table<BlobRecord, string>;
+  outbox!: Table<OutboxItem, string>;
+  rowMeta!: Table<RowMeta, string>;
+  syncState!: Table<SyncState, string>;
+  conflicts!: Table<ConflictItem, string>;
 
-  constructor() {
-    super('the-system');
+  /** True for account databases: every write is queued for upload. */
+  tracked = false;
+
+  constructor(name: string = LEGACY_DB_NAME) {
+    super(name);
     this.version(1).stores({
       quests: 'id, category, order',
       completions: 'id, questId, date',
@@ -26,10 +74,36 @@ export class SystemDB extends Dexie {
       settings: 'id',
       blobs: 'key',
     });
+    this.version(2)
+      .stores({
+        outbox: 'key, rev',
+        rowMeta: 'key',
+        syncState: 'key',
+        conflicts: 'key',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('settings').toCollection().modify((s: Settings) => {
+          s.timezone ??= DEFAULT_TIMEZONE;
+        });
+      });
   }
 }
 
-export const db = new SystemDB();
+export let db = new SystemDB(LEGACY_DB_NAME);
+
+/** Point the whole app at another local database. `db` is a live binding. */
+export function switchDatabase(name: string, tracked = false): SystemDB {
+  if (db.name !== name) {
+    db.close();
+    db = new SystemDB(name);
+  }
+  db.tracked = tracked;
+  return db;
+}
+
+export function isDemoRequested(): boolean {
+  return typeof location !== 'undefined' && new URLSearchParams(location.search).has('demo');
+}
 
 /** First run: seed the 27 quests + default settings. Safe to call on every start. */
 export async function ensureSeeded(): Promise<void> {
@@ -48,7 +122,7 @@ export async function ensureSeeded(): Promise<void> {
  * Never touches a database that already has completions.
  */
 export async function seedDemoIfRequested(): Promise<void> {
-  if (typeof location === 'undefined' || !new URLSearchParams(location.search).has('demo')) return;
+  if (!isDemoRequested()) return;
   if ((await db.completions.count()) > 0) return;
   const quests = await db.quests.toArray();
   const today = todayKey();

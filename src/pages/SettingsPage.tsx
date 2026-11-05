@@ -4,16 +4,23 @@
 import { useEffect, useRef, useState } from 'react';
 import { Database, Film, Music2, Plus, ShieldCheck, SlidersHorizontal, Trash2, Upload, User, Volume2 } from 'lucide-react';
 import { useSystem } from '../state/SystemProvider';
-import { deleteBlob, putBlob, uid, updateSettings } from '../data/actions';
+import { addCompletions, deleteBlob, putBlob, resetAllData, uid, updateSettings } from '../data/actions';
 import { downloadBackup, restoreBackup, validateBackup } from '../data/backup';
 import { buildCompletions, previewImport, type ImportPreviewRow } from '../data/csvImport';
-import { db, requestPersistence } from '../data/db';
-import { detectMediaType } from '../lib/media';
+import { requestPersistence } from '../data/db';
+import { detectMediaType, safeHttpUrl } from '../lib/media';
 import { sfx } from '../lib/sfx';
-import { isValidKey, prettyDate } from '../domain/dates';
+import { DEFAULT_TIMEZONE, isValidKey, prettyDate } from '../domain/dates';
+import { AccountPanel } from '../components/auth/AccountPanel';
+import { useSync } from '../sync/runtime';
 import { HunterAvatar } from '../components/hud/Avatar';
 import { Modal, Panel } from '../components/ui/primitives';
 import { useUI } from '../state/ui';
+
+function timezones(current?: string): string[] {
+  const list = Intl.supportedValuesOf?.('timeZone') ?? [];
+  return [...new Set([DEFAULT_TIMEZONE, current ?? DEFAULT_TIMEZONE, ...list])];
+}
 
 async function resizeImage(file: File, size = 256): Promise<string> {
   const img = await createImageBitmap(file);
@@ -38,6 +45,8 @@ export function SettingsPage() {
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <AccountPanel />
+
       <Panel title="Hunter Profile" icon={<User size={14} />}>
         <div className="flex items-center gap-4">
           <HunterAvatar src={settings.avatarDataUrl} size={80} color={level.rank.color} />
@@ -137,6 +146,16 @@ export function SettingsPage() {
             </select>
           </div>
           <div>
+            <label className="label" htmlFor="tz">Timezone</label>
+            <select id="tz" className="input" value={settings.timezone ?? DEFAULT_TIMEZONE} onChange={(e) => updateSettings({ timezone: e.target.value })}>
+              {timezones(settings.timezone).map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="label" htmlFor="anchor">Cycle start date (day 1)</label>
             <input
               id="anchor"
@@ -147,7 +166,9 @@ export function SettingsPage() {
             />
           </div>
         </div>
-        <p className="mt-3 font-mono text-[10px] text-slate-500">28-day cycles repeat from the start date. Changing it re-slices history into cycles — nothing is deleted.</p>
+        <p className="mt-3 font-mono text-[10px] text-slate-500">
+          The timezone decides when a new day starts on all your devices. 28-day cycles repeat from the start date, and changing it only re-groups history. Nothing is deleted.
+        </p>
       </Panel>
 
       <MediaSettings />
@@ -166,9 +187,10 @@ function MediaSettings() {
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const type = url ? detectMediaType(url) : null;
+  const invalid = !!url.trim() && !safeHttpUrl(url);
 
   const add = async () => {
-    if (!url.trim()) return;
+    if (!url.trim() || invalid) return;
     const item = { id: uid(), type: type!, title: title.trim() || (type === 'youtube' ? 'YouTube video' : type === 'facebook' ? 'Facebook Reel' : 'Link'), url: url.trim() };
     await updateSettings({ media: [...settings.media, item], activeMediaId: item.id });
     setUrl('');
@@ -202,9 +224,14 @@ function MediaSettings() {
       <div className="mt-4 space-y-2 border-t border-white/5 pt-3">
         <label className="label" htmlFor="murl">Add YouTube / Shorts / Facebook Reel URL</label>
         <input id="murl" className="input" placeholder="https://youtube.com/shorts/…" value={url} onChange={(e) => setUrl(e.target.value)} />
+        {invalid && (
+          <p role="alert" className="font-mono text-[10px] text-red-300">
+            Enter a full link starting with https://
+          </p>
+        )}
         <input className="input" placeholder="Title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Media title" />
         <div className="flex flex-wrap items-center gap-2">
-          <button className="btn" onClick={add} disabled={!url.trim()}>
+          <button className="btn" onClick={add} disabled={!url.trim() || invalid}>
             <Plus size={14} /> Add {type && type !== 'link' ? type : 'link'}
           </button>
           <label className="btn cursor-pointer">
@@ -232,6 +259,7 @@ function MediaSettings() {
 function DataSettings({ persisted, onPersist }: { persisted: boolean | null; onPersist: () => void }) {
   const { quests, settings, completions } = useSystem();
   const pushToast = useUI((s) => s.pushToast);
+  const cloud = useSync((s) => s.mode) === 'cloud';
   const jsonInput = useRef<HTMLInputElement>(null);
   const csvInput = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<ImportPreviewRow[] | null>(null);
@@ -265,7 +293,7 @@ function DataSettings({ persisted, onPersist }: { persisted: boolean | null; onP
               try {
                 const data = JSON.parse(await f.text());
                 if (!validateBackup(data)) throw new Error('Not a System backup file');
-                if (!confirm(`Replace ALL current data with the backup from ${data.exportedAt.slice(0, 10)}? (${data.completions.length} completions)`)) return;
+                if (!confirm(`Replace ALL current data${cloud ? ' in your account, on every device,' : ''} with the backup from ${data.exportedAt.slice(0, 10)}? (${data.completions.length} completions) This cannot be undone.`)) return;
                 await restoreBackup(data);
                 pushToast({ title: 'Backup restored', tone: 'success' });
               } catch (err) {
@@ -342,7 +370,7 @@ function DataSettings({ persisted, onPersist }: { persisted: boolean | null; onP
             className="btn"
             disabled={!toImport.length}
             onClick={async () => {
-              await db.completions.bulkPut(toImport);
+              await addCompletions(toImport);
               if (setAnchor) await updateSettings({ cycleAnchor: csvStart });
               setPreview(null);
               pushToast({ title: 'Sheet imported', body: `${toImport.length} completions added`, tone: 'success' });
@@ -354,14 +382,19 @@ function DataSettings({ persisted, onPersist }: { persisted: boolean | null; onP
       </Modal>
 
       <Modal open={confirmReset} onClose={() => setConfirmReset(false)} title="Reset all data?">
-        <p className="font-mono text-sm text-slate-300">This erases every quest, completion and setting on this device and restores the 27 default quests. Export a backup first.</p>
+        <p className="font-mono text-sm text-slate-300">
+          {cloud
+            ? 'This erases every quest, completion and setting in your account, on all your devices, and restores the 27 default quests. It cannot be undone. Export a backup first.'
+            : 'This erases every quest, completion and setting in this browser and restores the 27 default quests. It cannot be undone. Export a backup first.'}
+        </p>
         <div className="mt-4 flex justify-end gap-2">
           <button className="btn-ghost" onClick={() => setConfirmReset(false)}>Cancel</button>
           <button
             className="btn-danger"
             onClick={async () => {
-              await db.delete();
-              location.reload();
+              await resetAllData();
+              if (!cloud) location.reload();
+              else setConfirmReset(false);
             }}
           >
             Erase & reset

@@ -19,8 +19,15 @@ src/
 │  ├─ backup.ts       JSON export / restore
 │  └─ csvImport.ts    Google Sheets CSV → completions (fuzzy name matching)
 ├─ state/
+│  ├─ AuthGate.tsx        Demo, local or account mode; sign-in; import prompt
 │  ├─ SystemProvider.tsx  Live queries + derived values + System events
 │  └─ ui.ts               zustand: tab, toasts, modals
+├─ sync/
+│  ├─ engine.ts       Upload queue, pulls, conflict handling
+│  ├─ remote.ts       The Supabase calls, behind a small interface
+│  ├─ mapping.ts      Local records <-> database rows
+│  ├─ importLocal.ts  Safe import of pre-account progress
+│  └─ runtime.ts      Supabase client, running engine, status store
 ├─ lib/
 │  ├─ sfx.ts          Web Audio sound effects + generative "System Anthem"
 │  └─ media.ts        YouTube / Facebook URL parsing & embed URLs
@@ -36,7 +43,7 @@ src/
 4. **Events:** the provider compares the previous and current level and today's completion, then fires the **level-up modal** and **daily-complete** fanfare. Neither fires on first load.
 5. **Render:** components read everything from `useSystem()`.
 
-Toggling a box goes through all five steps in a few milliseconds. There's no network involved at all.
+Toggling a box goes through all five steps in a few milliseconds, without waiting for the network. For a signed-in user, the same write also queues the change, and the sync engine uploads it in the background. See [DATA-MODEL.md](DATA-MODEL.md).
 
 ## Core rules
 
@@ -89,4 +96,6 @@ Walk backwards from today:
 npm test
 ```
 
-24 Vitest tests cover date math (month/year/leap-year rollovers), rank boundaries (500/501, 12,000/12,001), schedule-aware percentages, streak forgiveness, cycle slicing that matches the original sheet (11 Oct → 7 Nov), EXP snapshots, the CSV importer, and media URL parsing.
+`npm test` covers date and timezone math, rank boundaries, schedule-aware percentages, streak forgiveness, cycle slicing, EXP snapshots, the CSV importer, media URL safety and the config checks. It also runs the real SQL migration on real Postgres (PGlite) to test the security policies, and syncs two simulated devices through it.
+
+`npm run e2e` drives the production build in a real browser. See [VERIFICATION.md](VERIFICATION.md) for what this does and does not prove.

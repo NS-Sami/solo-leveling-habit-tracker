@@ -2,6 +2,9 @@ node_modules
 dist
 dev-dist
 *.local
+.env
+.env.*
+.supabase
 .DS_Store
 coverage
 .vscode/*

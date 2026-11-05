@@ -4,6 +4,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, X } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * System window. Header = circled "!" glyph + boxed glowing title, like the
@@ -177,7 +178,8 @@ export function Modal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
-  return (
+  // Rendered on <body>: inside <main> it would sit behind the header and phone navigation.
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -206,11 +208,12 @@ export function Modal({
                 <X size={16} />
               </button>
             </header>
-            <div className="p-4">{children}</div>
+            <div className="p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">{children}</div>
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
 

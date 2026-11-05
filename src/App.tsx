@@ -9,6 +9,7 @@ import { useUI, type Tab } from './state/ui';
 import { PlayerStatus } from './components/hud/PlayerStatus';
 import { EmergencyBanner, LevelUpModal, ManaMotes, Toasts } from './components/system/SystemOverlays';
 import { TheaterModal } from './components/media/MotivationHub';
+import { SyncBadge, SyncBanner } from './components/system/SyncStatus';
 import { TodayPage } from './pages/TodayPage';
 import { GridPage } from './pages/GridPage';
 import { StatsPage } from './pages/StatsPage';
@@ -77,11 +78,19 @@ export default function App() {
               </button>
             ))}
           </nav>
-          <div className="ml-auto min-w-0 flex-1 sm:max-w-64 md:w-64 md:flex-none">{tab !== 'today' && <PlayerStatus compact />}</div>
+          <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:max-w-80 md:w-80 md:flex-none">
+            <SyncBadge />
+            {tab !== 'today' && (
+              <div className="min-w-0 flex-1">
+                <PlayerStatus compact />
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
       <main className="relative z-10 mx-auto max-w-7xl space-y-4 px-4 py-4">
+        <SyncBanner />
         <EmergencyBanner />
         <AnimatePresence mode="wait">
           <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
@@ -93,7 +102,7 @@ export default function App() {
           </motion.div>
         </AnimatePresence>
         <footer className="pt-6 text-center font-mono text-[10px] text-slate-600">
-          The System v1.0 · offline-first · your data never leaves this device · fan-made, original artwork
+          The System · fan-made, original artwork
         </footer>
       </main>
 

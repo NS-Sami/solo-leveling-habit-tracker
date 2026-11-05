@@ -1,7 +1,7 @@
 /**
- * Local-date helpers. All dates in the app are `YYYY-MM-DD` strings in the
- * user's local timezone. Using UTC (`toISOString`) would put late-night check-ins
- * on the wrong day for anyone east/west of Greenwich — e.g. Dhaka (UTC+6).
+ * Date helpers. All dates in the app are `YYYY-MM-DD` strings in the hunter's
+ * chosen timezone (default Asia/Dhaka). Using UTC (`toISOString`) would put
+ * late-night check-ins on the wrong day for anyone in Dhaka (UTC+6).
  */
 import type { DateKey } from './types';
 
@@ -17,8 +17,65 @@ export function fromKey(key: DateKey): Date {
   return new Date(y, m - 1, d, 12, 0, 0, 0);
 }
 
-export function todayKey(now: Date = new Date()): DateKey {
-  return toKey(now);
+/* ---- Explicit user timezone ------------------------------------------------
+ * "Today" is decided by the hunter's chosen timezone, not by whichever device
+ * they happen to be holding, so a phone and a laptop always agree on the day.
+ */
+export const DEFAULT_TIMEZONE = 'Asia/Dhaka';
+
+let activeTimezone = DEFAULT_TIMEZONE;
+
+export function isValidTimezone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function setActiveTimezone(tz: string | undefined | null) {
+  activeTimezone = tz && isValidTimezone(tz) ? tz : DEFAULT_TIMEZONE;
+}
+
+export function getActiveTimezone(): string {
+  return activeTimezone;
+}
+
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+function zonedParts(now: Date, tz: string) {
+  let f = formatters.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    formatters.set(tz, f);
+  }
+  const get = (type: string) => f!.formatToParts(now).find((p) => p.type === type)?.value ?? '00';
+  return { year: get('year'), month: get('month'), day: get('day'), hour: Number(get('hour')), minute: Number(get('minute')) };
+}
+
+export function todayKey(now: Date = new Date(), tz: string = activeTimezone): DateKey {
+  const p = zonedParts(now, tz);
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+/** Current hour (0-23) in the given timezone. */
+export function hourInZone(now: Date = new Date(), tz: string = activeTimezone): number {
+  return zonedParts(now, tz).hour;
+}
+
+/** Minutes left until midnight in the given timezone. */
+export function minutesUntilMidnight(now: Date = new Date(), tz: string = activeTimezone): number {
+  const p = zonedParts(now, tz);
+  return 24 * 60 - (p.hour * 60 + p.minute);
 }
 
 export function addDays(key: DateKey, n: number): DateKey {
