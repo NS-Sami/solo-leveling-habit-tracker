@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { startMock } from './mock-supabase.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const BASE = '/solo-leveling-habit-tracker/';
+const BASE = process.env.E2E_BASE ?? '/solo-leveling-habit-tracker/';
 const mock = await startMock({ dist: path.join(root, 'dist'), base: BASE, migration: path.join(root, 'supabase/migrations/0001_init.sql') });
 const browser = await chromium.launch({ channel: process.env.BROWSER === 'chrome' ? 'chrome' : 'msedge' });
 

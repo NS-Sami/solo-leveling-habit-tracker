@@ -1,10 +1,15 @@
-# Test → build → deploy to GitHub Pages on every push to main.
-# One-time setup: repo Settings → Pages → Source: "GitHub Actions".
-name: Deploy to GitHub Pages
+# Runs the tests and a production build on every push to main.
+#
+# Hosting is done by Cloudflare (see docs/HOSTING.md), which builds from GitHub by itself.
+# To publish to GitHub Pages instead, add a repository variable
+#   Settings > Secrets and variables > Actions > Variables:  DEPLOY_TO_GITHUB_PAGES = true
+# and set Settings > Pages > Source to "GitHub Actions".
+name: Test and build
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -13,7 +18,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -23,22 +28,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
-      - name: Refuse to publish a Supabase secret key
-        run: |
-          if grep -rEl --exclude='*.test.ts' 'sb_secret_[A-Za-z0-9]|service_role.*eyJ' public src index.html; then
-            echo "A secret key was found in files that get published. Remove it and rotate it in Supabase."
-            exit 1
-          fi
       - run: npm ci
       - run: npm test
+      # Also refuses to build if a Supabase secret key is in a published file.
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - if: vars.DEPLOY_TO_GITHUB_PAGES == 'true' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
-  deploy:
+  deploy-github-pages:
+    if: vars.DEPLOY_TO_GITHUB_PAGES == 'true' && github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:

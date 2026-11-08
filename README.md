@@ -153,56 +153,47 @@ More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## 🚀 Put it online with accounts (free)
 
-This takes about 20 minutes. You need a GitHub account and a free Supabase account. Do the steps in order.
+**Supabase** stores accounts and progress. **Cloudflare** hosts the website and gives you a free address. Both are free, and neither needs a credit card.
 
-The steps use this project's repository, `NS-Sami/solo-leveling-habit-tracker`, so your site address will be:
+> **Why not host the website on Supabase too?** On the free plan, Supabase can't serve websites: pages come out as plain text. Making it work needs Supabase Pro plus a paid custom domain, about $35/month. The research and a comparison of other hosts is in [docs/HOSTING.md](docs/HOSTING.md).
 
-```
-https://ns-sami.github.io/solo-leveling-habit-tracker/
-```
+You'll need about 30 minutes. Do the parts in order.
 
-If you fork or rename the repository, replace that address everywhere below. Keep the `/` at the end.
+| Part | Where | What you get |
+|---|---|---|
+| **A** (Steps 1–3) | Supabase | Database, sign-in, and your two keys |
+| **B** (Steps 4–6) | GitHub, then Cloudflare | Your live address: `https://solo-leveling-habit-tracker.<your-name>.workers.dev` |
+| **C** (Steps 7–9) | Supabase, then your browser | Email links working, your old progress imported, and everything checked |
 
-### Step 1: Create the Supabase project
+---
 
-1. Go to <https://supabase.com> and sign up.
-2. Click **New project**. Choose a name and a region near you (Singapore or Mumbai are close to Bangladesh).
-3. Set a database password and store it in a password manager. **This password never goes in any project file.**
-4. Wait until the project finishes setting up.
+### Part A: Supabase (accounts and data)
 
-### Step 2: Create the database tables
+#### Step 1: Create the Supabase project
 
-1. In the Supabase dashboard, open **SQL Editor** and click **New query**.
-2. Open [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) from this project, and copy the whole file.
-3. Paste it into the editor and click **Run**. You should see a success message.
-4. Open **Table Editor**. You should see `quests`, `completions`, `day_meta` and `user_settings`, and each should show that Row Level Security (RLS) is on.
+1. Go to <https://supabase.com> and sign up. GitHub sign-in is fine.
+2. Click **New project**.
+3. Fill in:
+   - **Name:** for example `the-system`.
+   - **Database password:** click Generate, then save it in a password manager. **This password never goes in any project file.**
+   - **Region:** pick one near you. Singapore or Mumbai are close to Bangladesh.
+4. Click **Create new project**, and wait 1–2 minutes until it is ready.
+
+#### Step 2: Create the database tables
+
+1. In the left menu, open **SQL Editor** and click **New query**.
+2. Open [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) in this project, select everything, and copy it.
+3. Paste it into the editor and click **Run**. You should see *Success. No rows returned*.
+4. Open **Table Editor**. You should see four tables: `quests`, `completions`, `day_meta` and `user_settings`, each marked as RLS enabled.
 
 The file is safe to run again, and it never deletes data.
 
-### Step 3: Configure sign-in
+#### Step 3: Put your two keys in the project
 
-Open **Authentication → URL Configuration** (Supabase sometimes moves this menu; look under **Authentication**) and set:
-
-| Setting | Value |
-|---|---|
-| **Site URL** | `https://ns-sami.github.io/solo-leveling-habit-tracker/` |
-| **Redirect URLs** (add both) | `https://ns-sami.github.io/solo-leveling-habit-tracker/` |
-| | `http://localhost:5173/**` |
-
-The first address is your live site. The second lets email links work while you run the app on your computer. If an email link later fails with a redirect error, this list is the first thing to check.
-
-**Email confirmation.** When "Confirm email" is on (under **Authentication → Sign In / Providers → Email**), a new user must click a link in an email before they can sign in. This proves they own the address.
-
-> ⚠️ **Supabase's built-in email is only for testing.** It delivers only to members of your Supabase organization, and it is limited to about 2 emails per hour for the whole project. So this works for you, but friends will not receive confirmation or password reset emails.
->
-> **To invite other people, choose one:**
-> - **Set up custom SMTP** (Authentication → SMTP settings) with an email provider. This is the proper fix, and password reset emails then work for everyone.
-> - **Turn off "Confirm email".** Sign-up then works instantly with no email. The catch is that nobody proves they own the address, and password reset still needs working email.
-
-### Step 4: Add your project keys
-
-1. In Supabase, open **Project Settings**. Copy your **Project URL**, and from **API Keys** copy the **Publishable key** (it starts with `sb_publishable_`).
-2. Open [`public/config.js`](public/config.js) and fill in both values:
+1. In Supabase, open **Project Settings** (the gear icon).
+2. Copy the **Project URL**. It looks like `https://abcdefgh.supabase.co`.
+3. Open **API Keys** and copy the **Publishable key**. It starts with `sb_publishable_`.
+4. On your computer, open [`public/config.js`](public/config.js) and paste both in:
 
 ```js
 window.SYSTEM_CONFIG = {
@@ -211,64 +202,133 @@ window.SYSTEM_CONFIG = {
 };
 ```
 
-**Is it safe to publish this?** Yes. The publishable key is designed to be public, and anyone can read it in their browser. Your data is protected by the Row Level Security rules from Step 2, not by hiding this key. Frontend files and environment variables can never hide a secret, because they all end up in the visitor's browser.
+**Is it safe to publish these?** Yes. The publishable key is made to be public, and every visitor's browser can read it. What protects the data is the Row Level Security from Step 2. No website file or environment variable can hide a secret, because it all ends up in the visitor's browser.
 
-> 🚨 **Never** put a secret key (`sb_secret_...`), a `service_role` key or your database password in this project. They bypass all security rules. The app refuses to start with one, and the deploy workflow stops if it finds one. If one is ever committed, rotate it in Supabase immediately.
+> 🚨 **Never** use the **secret** key (`sb_secret_...`), a `service_role` key or the database password. They bypass all security rules. The app refuses to start with one, and `npm run build` refuses to build. If one is ever pushed, rotate it in Supabase immediately.
 
-### Step 5: Bring over progress from your computer (optional)
+---
 
-Progress is saved per website address, so anything on `http://localhost:5173` is not visible on the live site. To keep it:
+### Part B: Cloudflare (the website)
 
-1. Run `npm install`, then `npm run dev`, and open `http://localhost:5173` in the **same browser** you used before.
+#### Step 4: Push your code to GitHub
+
+In the terminal, in the project folder:
+
+```bash
+git add .
+git commit -m "Connect Supabase and add Cloudflare hosting"
+git push
+```
+
+GitHub will run the tests (the **Actions** tab shows a green check). It no longer tries to publish to GitHub Pages, so the failed-deploy emails stop.
+
+#### Step 5: Create a Cloudflare account
+
+1. Go to <https://dash.cloudflare.com/sign-up> and sign up. It's free, with no card needed.
+2. In the dashboard, open **Workers & Pages** (under **Compute**).
+3. If asked, choose your **workers.dev subdomain**, for example `nssami`. It becomes part of your address and can't easily be changed, so pick carefully.
+
+#### Step 6: Connect GitHub and deploy
+
+1. In **Workers & Pages**, click **Create application**. If you see tabs, choose the **Workers** tab, not Pages.
+2. Choose **Import a repository** (or **Connect GitHub**), and allow Cloudflare to access **NS-Sami/solo-leveling-habit-tracker**.
+3. Select that repository, and fill in:
+
+| Field | Value |
+|---|---|
+| **Project / Worker name** | `solo-leveling-habit-tracker` (must match `name` in [`wrangler.jsonc`](wrangler.jsonc), or the build fails) |
+| **Build command** | `npm test && npm run build` |
+| **Deploy command** | `npx wrangler deploy` (usually the default) |
+| **Root directory** | Leave empty |
+| **Production branch** | `main` |
+
+4. Click **Save and Deploy**, or **Create and deploy**. The first build takes about 2–4 minutes.
+5. When it shows **Success**, copy your address. It looks like:
+
+```
+https://solo-leveling-habit-tracker.<your-subdomain>.workers.dev
+```
+
+Open it. The sign-in screen should appear in the System style.
+
+**From now on, every `git push` to `main` rebuilds and redeploys automatically.** If a build fails, the previous version stays online, and the build log shows why.
+
+---
+
+### Part C: Connect everything and check it
+
+#### Step 7: Tell Supabase your website address
+
+Email links (confirmation and password reset) only go to addresses you allow. In Supabase, open **Authentication → URL Configuration** and set:
+
+| Setting | Value |
+|---|---|
+| **Site URL** | `https://solo-leveling-habit-tracker.<your-subdomain>.workers.dev/` |
+| **Redirect URLs** (add both) | `https://solo-leveling-habit-tracker.<your-subdomain>.workers.dev/**` |
+| | `http://localhost:5173/**` |
+
+The second address lets email links work while you run the app on your computer.
+
+**Email confirmation.** With "Confirm email" on (**Authentication → Sign In / Providers → Email**), new users must click an emailed link before signing in. This proves they own the address.
+
+> ⚠️ **Supabase's built-in email only reaches you.** It delivers only to members of your Supabase organization, and it sends about 2 emails per hour. Your own account works, but friends won't receive confirmation or password reset emails.
+>
+> **Before inviting people, choose one:**
+> - **Set up custom SMTP** (**Authentication → SMTP Settings**) with an email provider. Several have free plans. This is the proper fix.
+> - **Turn off "Confirm email".** Sign-up then works with no email, but nobody proves they own their address, and password reset still needs working email.
+
+#### Step 8: Bring over your existing progress (optional)
+
+Progress saved before accounts lives in the browser you used, at `http://localhost:5173`. To move it into your account:
+
+1. Run `npm run dev`, and open `http://localhost:5173` in that **same browser**.
 2. Create your account, or sign in.
-3. When the **Import Progress** window appears, check the numbers and click **Import to My Account**.
+3. In the **Import Progress** window, check the numbers and click **Import to My Account**.
 
-Nothing is uploaded without that click. Existing online records are kept, importing twice creates no duplicates, and the copy in your browser stays until you remove it yourself in **Settings → Account**.
+Nothing uploads without that click. Existing online records are kept, importing twice creates no duplicates, and the copy in your browser stays until you remove it in **Settings → Account**.
 
-### Step 6: Push to GitHub and turn on Pages
+#### Step 9: Check the live site
 
-1. Send your changes to GitHub:
-
-   ```bash
-   git add .
-   git commit -m "Add Supabase accounts and multi-device sync"
-   git push
-   ```
-
-2. On GitHub, open your repository, then **Settings → Pages**.
-3. Under **Build and deployment → Source**, choose **GitHub Actions**.
-
-   This step is required. It is why the first deployment failed: the build passed, but Pages was not switched on.
-
-4. Open the **Actions** tab. If the latest run failed, click it and choose **Re-run all jobs**. Wait for a green check mark.
-5. Open your site address.
-
-### Step 7: Check the live site
+On your workers.dev address:
 
 - [ ] The sign-in screen appears, with the correct fonts and styling.
 - [ ] Create an account. The confirmation email arrives, and its link opens your site and signs you in.
-- [ ] Tick a quest. The badge in the header goes from **Saving** to **Saved**.
+- [ ] Tick a quest. The header badge goes from **Saving** to **Saved**.
 - [ ] In Supabase **Table Editor → completions**, the row is there.
 - [ ] Refresh the page. The tick is still there.
 - [ ] Sign in on your phone. The same progress appears.
 - [ ] Tick a quest on the phone, then refresh the laptop. It appears.
 - [ ] Create a second account with another email. It shows none of the first account's progress.
-- [ ] Sign out, use **Forgot password?**, and follow the email link to set a new password.
+- [ ] Sign out, use **Forgot password?**, and set a new password from the email link.
 - [ ] Turn on airplane mode, tick a quest, then reconnect. It uploads and shows **Saved**.
 
 To install it as an app on your phone, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
+#### If something goes wrong
+
+| Problem | Fix |
+|---|---|
+| Cloudflare build fails with a name error | The Worker name must be exactly `solo-leveling-habit-tracker`, matching `wrangler.jsonc`. |
+| Cloudflare build fails at "No secret keys" | A secret key is in a published file. Remove it, then rotate it in Supabase. |
+| The site shows "Setup Needed" | `public/config.js` is incomplete, or still has the example placeholders. |
+| No sign-in screen, and the badge says "This device only" | `public/config.js` is empty on the version you pushed. |
+| An email link says the redirect is not allowed | Recheck Step 7. The address must match exactly, including `https://`. |
+| Friends get no email | That's the built-in email limit. See the warning in Step 7. |
+| "Cannot reach the server" for everyone | The free Supabase project paused after a week unused. Press **Restore** in the Supabase dashboard. |
+
 ### Free plan limits
 
-These can change, so check <https://supabase.com/pricing> for current numbers.
+Checked 8 Nov 2026. These change, so check [Supabase pricing](https://supabase.com/pricing) and the [Cloudflare limits](https://developers.cloudflare.com/workers/platform/limits/).
 
 | Service | Limit to know about |
 |---|---|
-| **Supabase pausing** | A free project **pauses after about 7 days with no activity**. Your data is kept, but the site cannot load or save online until you press **Restore** in the Supabase dashboard. Daily use keeps it awake. While paused, the app shows it cannot reach the server and keeps new changes on the device. |
-| **Supabase database** | 500 MB per project. Years of habit data fit comfortably. Uploaded videos and audio are not stored online. |
-| **Supabase users** | About 50,000 monthly active users, and 2 active free projects per account. |
-| **Supabase email** | See the warning in Step 3. |
-| **GitHub Pages** | Free for public repositories. The site is public, but each person's data stays private behind their account. |
+| **Supabase pausing** | A free project **pauses after one week without activity**. Data is kept, but nothing loads or saves online until you press **Restore** in the dashboard. Daily use keeps it awake. While paused, the app says it can't reach the server and keeps new changes on the device. |
+| **Supabase database** | 500 MB. One user adds only a few MB a year, so this holds a lot of hunters. Uploaded videos and audio stay on devices. |
+| **Supabase traffic and users** | 5 GB egress/month, 50,000 monthly active users, and 2 active free projects. |
+| **Supabase email** | Built-in email only reaches your own team, at about 2 emails/hour. See Step 7. |
+| **Cloudflare website** | Static file requests are free and unlimited. 20,000 files max (this site has about 20). Builds get 3,000 minutes/month, one at a time. |
+
+When you outgrow these, see "What happens as you grow" in [docs/HOSTING.md](docs/HOSTING.md).
 
 ### How saving works
 
@@ -283,7 +343,7 @@ These can change, so check <https://supabase.com/pricing> for current numbers.
 ## 💻 Run it on your computer
 
 ```bash
-# requires Node.js 18+
+# requires Node.js 22+
 npm install
 npm run dev          # http://localhost:5173
 ```
@@ -294,7 +354,9 @@ Add `?demo=1` to the address to explore sample data. Demo data has its own stora
 | Command | What it does |
 |---|---|
 | `npm test` | Unit, sync and security tests |
-| `npm run build` | Production build into `dist/` |
+| `npm run build` | Checks for secret keys, then builds into `dist/` |
+| `npm run preview:cloudflare` | Runs the built site on Cloudflare's runtime locally (`wrangler dev`) |
+| `npm run deploy` | Deploys from your computer with Wrangler (needs `npx wrangler login` once). Not needed if Cloudflare builds from GitHub. |
 | `npm run e2e` | Browser test of the build (run `npm run build` first; needs Node 23.6+ and Edge) |
 | `npm run screenshots` | Regenerates `docs/screenshots/` |
 | `python scripts/make_cover.py` | Rebuilds the README banner and LinkedIn cover |

@@ -18,24 +18,31 @@ The System is a **static site**: HTML, JS, and CSS plus a service worker. Accoun
 
 > ⚠️ Without an account ("Continue without an account"), data is per browser and does not sync.
 
-> ⚠️ **On any host other than GitHub Pages**, add that site's address to Supabase's Site URL and Redirect URLs, or email links will fail.
+> ⚠️ **Whichever host you use**, add the site's address to Supabase's Site URL and Redirect URLs, or email links will fail.
 
 ## Recommended options
 
 | Host | Cost | Setup time | Best for |
 |---|---|---|---|
-| **GitHub Pages** ⭐ | Free | ~5 min | Portfolio and LinkedIn: the repo and live demo sit together |
-| **Vercel** | Free | ~2 min | Fastest setup, preview URL for every push |
+| **Cloudflare Workers** ⭐ | Free | ~10 min | Recommended. Unlimited static traffic, commercial use allowed. [Steps in README](../README.md#-put-it-online-with-accounts-free) |
+| **GitHub Pages** | Free | ~5 min | Personal portfolio only. GitHub's rules exclude online businesses and SaaS. |
+| **Vercel** | Free | ~2 min | Fast setup, but the free Hobby plan is for non-commercial use only |
 | **Netlify** | Free | ~2 min | Drag-and-drop `dist/` folder, no Git needed |
-| **Cloudflare Pages** | Free | ~3 min | Fastest global CDN |
 
-My pick: **GitHub Pages** for the portfolio link, plus installing it as a PWA on your phone for daily use.
+My pick: **Cloudflare Workers**. See [HOSTING.md](HOSTING.md) for the research.
 
 ---
 
 ### Option A: GitHub Pages (workflow included)
 
-Follow [the README steps](../README.md#-put-it-online-with-accounts-free). The workflow in `.github/workflows/deploy.yml` runs the tests, builds, and deploys on every push to `main`. The Vite config uses `base: './'`, so it works under any sub-path without changes.
+The workflow in `.github/workflows/deploy.yml` always runs the tests and the build. To also publish to Pages:
+
+1. In the repository, open **Settings → Secrets and variables → Actions → Variables**, and add `DEPLOY_TO_GITHUB_PAGES` with the value `true`.
+2. Open **Settings → Pages**, and set **Source** to **GitHub Actions**.
+3. Push, or re-run the workflow.
+4. Add `https://ns-sami.github.io/solo-leveling-habit-tracker/**` to Supabase's Redirect URLs.
+
+The Vite config uses `base: './'`, so it works under any sub-path without changes.
 
 ### Option B: Vercel
 
@@ -48,9 +55,6 @@ Follow [the README steps](../README.md#-put-it-online-with-accounts-free). The w
 1. Run `npm run build` locally.
 2. Drag the `dist/` folder onto <https://app.netlify.com/drop>.
 
-### Option D: Cloudflare Pages
-
-Connect the repo. Build command `npm run build`, output directory `dist`.
 
 ---
 

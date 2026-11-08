@@ -1,0 +1,18 @@
+// Cloudflare Workers configuration: hosts the built website (dist/) for free.
+//
+// There is no Worker script ("main" is not set), so Cloudflare serves the files
+// directly. Requests to static assets are free and unlimited, and do not count
+// toward the Workers free plan's 100,000 requests per day.
+//
+// "name" decides your free address:  https://<name>.<your-subdomain>.workers.dev
+// It must match the Worker name in the Cloudflare dashboard, or builds fail.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "solo-leveling-habit-tracker",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist/",
+    // Any unknown path returns the app instead of a 404.
+    "not_found_handling": "single-page-application"
+  }
+}
